@@ -1,25 +1,146 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
+title: 'Reproducible Research: Project 1'
+author: "Eugene S."
+date: "November 5, 2017"
 output: 
-  html_document:
+    html_document:
     keep_md: true
 ---
 
 
 ## Loading and preprocessing the data
+put the activity.csv file to working directory
 
+```{r loading, echo=TRUE}
+file <- list.files(getwd()
+                   , pattern = "activity.csv$"
+                   , full.names = T)
+actvty <- read.csv(file
+                   , sep=","
+                   , na.strings = "NA"
+                   , stringsAsFactors = F)
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r mean per day, echo=TRUE}
+ttlSteps <- aggregate(steps ~ date, actvty, mean)
+```
 
+here is histogram of total numbers of step per day
+```{r histogram, echo=TRUE}
+library(ggplot2)
+ttlSteps_sum <- tapply(actvty$steps, actvty$date, sum, na.rm=T)
+
+qplot(ttlSteps_sum
+      , binwidth = 1000
+      , xlab = "Total steps per day"
+      , ylab = "Count, number of days" 
+          )
+```
+
+```{r, echo=TRUE}
+mean(ttlSteps_sum)
+median(ttlSteps_sum)
+```
 
 
 ## What is the average daily activity pattern?
 
+```{r plot1, echo=TRUE}
+ttlSteps_avg <- aggregate(list(steps = actvty$steps)
+                       , list(interval = actvty$interval)
+                       , mean
+                       , na.rm=T
+                       )
 
+ggplot(data = ttlSteps_avg
+       , aes(x = interval
+             , y = steps)
+        )+
+        geom_line()+
+        xlab("5 mins interval")+
+        ylab("avareg steps across all days")
+```
 
+```{r int with max steps, echo=TRUE}
+maxstps <- subset(ttlSteps_avg$interval
+       , ttlSteps_avg$steps == max(ttlSteps_avg$steps))
+message("Interval number with max number of steps:\n"
+        , maxstps)
+```
 ## Imputing missing values
 
+Calculate and report the total number of missing values in the dataset 
+```{r NA values, echo=TRUE}
+sum(is.na(actvty$steps))
+```
 
+NAs imputing based on steps' average per interval
+```{r imputing, echo=TRUE}
+library(dplyr)
+impute <- function(steps.val, interval){
+    if(is.na(steps.val))
+        nonas.steps <- subset(ttlSteps_avg$steps
+                              , ttlSteps_avg$interval ==
+                                  interval)
+    else nonas.steps <- steps.val
+    return(nonas.steps)
+        
+}
+
+nonas.actvty <- mapply(impute, actvty$steps, actvty$interval)
+actvty.new <- mutate(actvty, steps = round(nonas.actvty, 0))
+```
+new data set summary shows absence of NAs
+```{r new dataset summary, echo=TRUE}
+summary(actvty.new)
+sum(is.na(actvty.new$steps))
+```
+Histogram of total steps per day for new dataset
+```{r histogram new dataset, echo=TRUE}
+library(ggplot2)
+ttlSteps_sum.new <- tapply(actvty.new$steps, actvty.new$date, sum, na.rm=T)
+
+qplot(ttlSteps_sum.new
+      , binwidth = 1000
+      , xlab = "Total steps per day"
+      , ylab = "Count, number of days" 
+)
+```
+
+```{r, echo=TRUE}
+mean(ttlSteps_sum.new)
+median(ttlSteps_sum.new)
+```
+
+Imputed data moves avarege and median of total steps per day closer to midday, which is actually more likly describes humans' behavior. 
+But anyway the calculation based on some assuption.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Create new variable which idicates if date in dataset is weekend day or not
+```{r add weekends, echo=TRUE}
+weekend.true <- weekdays(as.POSIXct(actvty.new$date)) %in% 
+                c("Saturday","Sunday")
+actvty.new <- mutate(actvty.new,weekend.true)
+summary(actvty.new)
+```
+
+Calculate average steps per interval across all days.
+Weekends apart from weekdays.
+```{r average weekends, echo=TRUE}
+actvty.new.avg <- aggregate(steps ~ interval + weekend.true
+                            , actvty.new
+                            , mean)
+                                
+```
+Plot 
+```{r plots weekends, echo=TRUE}
+ggplot(actvty.new.avg
+       , aes(x=interval, y=steps))+
+    geom_line()+
+    facet_grid(weekend.true~.)+
+    ggtitle("Average steps per interval across days"
+            , subtitle = "Weekdays (FALSE), Weekends (TRUE)")
+```
